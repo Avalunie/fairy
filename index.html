@@ -1,0 +1,350 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Система перетаскивания спрайтов</title>
+<style>
+	*
+	{
+	-webkit-user-select: none;
+	-moz-user-select: none;
+	user-select: none;
+	}
+</style>
+<canvas width="550" height="400"
+	style="border: 1px dashed black"></canvas>
+	
+<script>
+//---Объект спрайтов
+var spriteObject =
+{
+	sourceX: 0,
+	sourceY: 0,
+	sourceWidth: 64,
+	sourceHeight: 64,
+	width: 64,
+	height: 64,
+	x: 0,
+	y: 0,
+	vx: 0,
+	vy: 0,
+
+	visible: true,
+	draggable: true,
+	
+	rotationSpeed: 0.3,
+	rotation: 0,
+	 //Ускорение
+ accelerationX: 0,
+ accelerationY: 0,
+ //Скорость
+ speed: 3,
+ //Трение
+ friction: 0.96,
+
+	//Геттеры
+	left: function()
+	{
+	 return this.x;
+	},
+	right: function()
+	{
+	 return this.x + this.width;
+	},
+	top: function()
+	{
+	 return this.y;
+	},
+	bottom: function()
+	{
+	 return this.y + this.height;
+	},
+	centerX: function()
+	{
+	 return this.x + (this.width / 2);
+	},
+	centerY: function()
+	{
+	 return this.y + (this.height / 2);
+	},
+	halfWidth: function()
+	{
+	  return this.width / 2;
+	},
+	halfHeight: function()
+	{
+	 return this.height / 2;
+	}
+};
+//---Объект спрайтов
+var spriteFire =
+{
+	sourceX: 0,
+	sourceY: 0,
+	sourceWidth: 32,
+	sourceHeight: 32,
+	width: 32,
+	height: 32,
+	x: 0,
+	y: 0,
+	visible: true,
+	draggable: true,
+	//Геттеры
+	left: function()
+	{
+	 return this.x;
+	},
+	right: function()
+	{
+	 return this.x + this.width;
+	},
+	top: function()
+	{
+	 return this.y;
+	},
+	bottom: function()
+	{
+	 return this.y + this.height;
+	},
+	centerX: function()
+	{
+	 return this.x + (this.width / 2);
+	},
+	centerY: function()
+	{
+	 return this.y + (this.height / 2);
+	},
+	halfWidth: function()
+	{
+	  return this.width / 2;
+	},
+	halfHeight: function()
+	{
+	 return this.height / 2;
+	}
+};
+var message = "";
+//--- Основная программа
+//Холст и его поверхность рисования
+var canvas = document.querySelector("canvas");
+var drawingSurface = canvas.getContext("2d");
+//Массивы объектов
+var sprites = [];
+var assetsToLoad = [];
+var assetsLoaded = 0;
+//Создание спрайтов
+var cat = Object.create(spriteObject);
+	cat.x = 0;//canvas.width / 2 - fairy.halfWidth();
+	cat.y = 0;// canvas.height / 2 - fairy.halfHeight();
+	sprites.push(cat);
+var fairy = Object.create(spriteObject);
+	fairy.sourceX = 64;
+	fairy.x = 100;
+	fairy.y = 100;
+	sprites.push(fairy);
+var bubble = Object.create(spriteFire);
+	bubble.sourceX = 128;
+	bubble.x = 375;
+	bubble.y = 250;
+	sprites.push(bubble);
+var star = Object.create(spriteFire);
+	star.sourceX = 192;
+	//sprites.push(star);
+//Загрузка изображения
+var image = new Image();
+	image.addEventListener("load", loadHandler, false);
+	image.src = "dragAndDrop.png";
+	assetsToLoad.push(image);
+//Переменные для сохранения позиций курсора мыши
+var mouseX = 0;
+var mouseY = 0;
+var oldMouseX = 0;
+var oldMouseY = 0;
+//Ссылка на текущий перетаскиваемый спрайт
+var dragSprite = null;
+//Подключение обработчиков событий
+	canvas.addEventListener("mousemove", mousemoveHandler, false);
+	canvas.addEventListener("mousedown", mousedownHandler, false);
+	window.addEventListener("mouseup", mouseupHandler, false);
+//Состояния игры
+var LOADING = 0;
+var PLAYING = 1;
+var gameState = LOADING;
+var range = 300;
+var dragSprite = 0;
+var angle = 0;
+//Вычисление угла направления от центра Феи к курсору
+angle = Math.atan2(mouseY - cat.centerY(), mouseX
+ - cat.centerX());
+//Перемещение палочки вокруг Феи
+var radius = 64;
+	bubble.x = cat.centerX() + (radius * Math.cos(angle))
+	- bubble.halfWidth();
+	bubble.y = cat.centerY() + (radius * Math.sin(angle))
+	 - bubble.halfHeight();
+//звездочка
+star.x = bubble.centerX() - star.halfWidth();
+star.y = bubble.centerY() - star.halfHeight();
+star.vx = 7 * Math.cos(angle);
+star.vy = 7 * Math.sin(angle);	 
+	 
+
+update();
+function update()
+{
+	//Цикл анимации
+	requestAnimationFrame(update, canvas);
+	//Выбор дальнейших действий в зависимости от состояния игры
+	switch(gameState)
+	{
+		case LOADING:
+			console.log("Загрузка...");
+			break;
+		case PLAYING:
+			playGame();
+			break;
+	}
+	//Отображение игры
+	render();
+}
+
+function playGame()
+{
+	//Расчет проекций вектора, направленного от пчелы к курсору
+	var vx = mouseX - fairy.centerX();
+	var vy = mouseY - fairy.centerY();
+	//Расчет расстояния между центром пчелы и курсором мыши
+	var distance = Math.sqrt(vx * vx + vy * vy);
+	if (distance <= range)
+	{
+		//Применение эффекта ослабления при повороте пчелы
+		var moveX = fairy.rotationSpeed * vx / distance;
+		var moveY = fairy.rotationSpeed * vy / distance;
+		fairy.vx += moveX;
+		fairy.vy += moveY;
+		//Применение эффекта ослабления при перемещении пчелы
+		var moveDistance = Math.sqrt(fairy.vx * fairy.vx
+		+ fairy.vy * fairy.vy);
+		fairy.vx = fairy.speed * fairy.vx / moveDistance;
+		fairy.vy = fairy.speed * fairy.vy / moveDistance;
+		//Вычисление угла поворота пчелы в радианах
+		angle = Math.atan2(fairy.vy, fairy.vx);
+		//Перевод радиан в градусы, чтобы правильно повернуть пчелу
+		fairy.rotation = angle * 180 / Math.PI + 90;
+	}
+	else
+	{
+		//Применение торможения
+		fairy.vx *= fairy.friction;
+		fairy.vy *= fairy.friction;
+	}
+	//Перемещение пчелы
+	fairy.x += fairy.vx;
+	fairy.y += fairy.vy;
+}
+
+
+function mousedownHandler(event)
+{
+	//Перебор спрайтов в обратном порядке для выяснения,
+	//находится ли курсор мыши над любым из них
+	for(var i = sprites.length - 1; i > -1; i--)
+	{
+		sprite = sprites[i];
+		if(hitTestPoint(mouseX, mouseY, sprite) && sprite.draggable)
+		{
+			dragSprite = sprite;
+			//Перемещение спрайта в конец массива sprites, чтобы он
+			//отображался последним, т.е. над всеми другими спрайтами
+			sprites.push(dragSprite);
+			//Удаление спрайта со старой позиции в массиве sprites
+			sprites.splice(i, 1);
+			break;
+		}
+	}
+}
+function mousemoveHandler(event)
+{
+	//Определение X и Y позиций курсора мыши на холсте
+	mouseX = event.pageX - canvas.offsetLeft;
+	mouseY = event.pageY - canvas.offsetTop;
+	//Смена вида курсора, если он находится над спрайтом
+	for(var i = 0; i < sprites.length; i++)
+	{
+		sprite = sprites[i];
+		if(hitTestPoint(mouseX, mouseY, sprite) && sprite.draggable)
+		{
+			canvas.style.cursor = "pointer";
+			break;
+		}
+		else
+		{
+			canvas.style.cursor = "auto";
+		}
+	}
+	//Перемещение выбранного спрайта, если такой есть
+	if(dragSprite !== null)
+	{
+		dragSprite.x = mouseX - (oldMouseX - dragSprite.x);
+		dragSprite.y = mouseY - (oldMouseY - dragSprite.y);
+		/*
+		//Код для перетаскивания спрайта за его центральную точку
+		dragSprite.x = mouseX - (dragSprite.width / 2);
+		dragSprite.y = mouseY - (dragSprite.height / 2);
+		*/
+	}
+	//Сохранение текущей позиции курсора мыши
+	oldMouseX = mouseX;
+	oldMouseY = mouseY;
+}
+function mouseupHandler(event)
+{
+	//Нет выбранного спрайта
+	dragSprite = null;
+}
+function loadHandler()
+{
+	assetsLoaded++;
+	if(assetsLoaded === assetsToLoad.length)
+	{
+		gameState = PLAYING;
+	}
+}
+function hitTestPoint(pointX, pointY, sprite)
+{
+	return pointX > sprite.left() && pointX < sprite.right()
+	&& pointY > sprite.top() && pointY < sprite.bottom();
+}
+function render()
+{
+ //Очистка холста: удаление предыдущего анимационного кадра
+ drawingSurface.clearRect(0, 0, canvas.width, canvas.height);
+ //Отображение спрайтов на холсте
+ if(sprites.length !== 0)
+ {
+ for(var i = 0; i < sprites.length; i++)
+ {
+ var sprite = sprites[i];
+ //Сохранение состояния поверхности рисования перед поворотом
+ drawingSurface.save();
+ //Поворот поверхности рисования
+ drawingSurface.translate
+ (
+ Math.floor(sprite.x + sprite.halfWidth()),
+ Math.floor(sprite.y + sprite.halfHeight())
+ );
+ drawingSurface.rotate(sprite.rotation * Math.PI / 180);
+ if(sprite.visible)
+ {
+ //Отображение спрайта
+ drawingSurface.drawImage(image,
+ sprite.sourceX, sprite.sourceY,
+ sprite.sourceWidth, sprite.sourceHeight,
+ Math.floor(-sprite.halfWidth()),
+ Math.floor(-sprite.halfHeight()),
+ sprite.width, sprite.height);
+ }
+ //Восстановление старого состояния поверхности рисования
+ drawingSurface.restore();
+ }
+ }
+}
+</script>
